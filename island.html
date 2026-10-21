@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فرار از جزیره مرموز</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap');
+:root{--ink:#eef7ff;--muted:#b8c9df;--panel:rgba(10,20,39,.82);--gold:#ffd166}
+*{box-sizing:border-box}body{margin:0;background:#07111f;color:var(--ink);font-family:Vazirmatn,Tahoma,sans-serif;display:grid;place-items:center;min-height:100vh;padding:18px}
+.wrap{width:min(100%,1000px)}header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;flex-wrap:wrap}h1{font-size:clamp(20px,4vw,30px);margin:0;font-weight:800;letter-spacing:-.5px}.subtitle{color:var(--muted);font-size:13px;margin-top:3px}.chip{border:1px solid #314662;background:#101e32;padding:8px 13px;border-radius:999px;font-size:13px;color:#d9e7f7}
+.gamebox{position:relative;border:1px solid #2a4260;border-radius:18px;overflow:hidden;box-shadow:0 24px 70px #0009;background:#111d32}canvas{display:block;width:100%;height:auto;image-rendering:auto;outline:none}.hud{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:start;pointer-events:none;gap:10px;direction:ltr}.hudgroup{display:flex;gap:7px;flex-wrap:wrap}.stat{background:#091528d9;border:1px solid #ffffff20;border-radius:11px;padding:7px 11px;font-size:13px;direction:rtl;backdrop-filter:blur(6px)}.stat b{color:var(--gold);margin-right:4px}.overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(#07111f77,#07111fbb);padding:20px}.card{width:min(100%,410px);background:rgba(8,19,36,.94);border:1px solid #49627f;border-radius:20px;padding:25px;text-align:center;box-shadow:0 20px 60px #0007}.eyebrow{font-size:12px;letter-spacing:2px;color:#7ee7cf}.card h2{margin:8px 0;font-size:27px}.card p{color:#c5d4e7;line-height:1.9;font-size:14px;margin:8px 0 18px}.btn{border:0;border-radius:12px;padding:12px 20px;background:linear-gradient(135deg,#ffd166,#ffad4d);color:#1b2130;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 5px 0 #b86e30;transition:transform .12s}.btn:hover{transform:translateY(-2px)}.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #b86e30}.menu-card{display:flex;flex-direction:column;align-items:stretch;gap:14px}.menu-card .game-title{margin:0 0 12px}.exit-btn{background:linear-gradient(135deg,#42536b,#26364d);color:#fff;box-shadow:0 5px 0 #172438}.exit-btn:active{box-shadow:0 2px 0 #172438}.version{font-size:12px;color:#8298b5;margin-top:5px}.hidden{display:none!important}
+@media(max-width:600px){body{padding:8px}.hud{top:7px;left:7px;right:7px}.stat{font-size:11px;padding:5px 7px}.card{padding:18px}.card h2{font-size:23px}}
+</style></head>
+<body><main class="wrap">
+
+<div class="gamebox"><canvas id="game" width="960" height="540" tabindex="0" aria-label="بازی فرار از جزیره مرموز"></canvas>
+<div class="hud"><div class="hudgroup"><div class="stat">🪙 سکه <b id="coins">۰ / ۸</b></div><div class="stat">❤️ جان <b id="lives">۳</b></div><div class="stat">⏱️ زمان <b id="time">۳۰</b></div></div><div class="hudgroup"><div class="stat">مرحله <b id="levelLabel">۱</b></div></div></div>
+<div class="overlay" id="start"><div class="card menu-card"><h2 class="game-title">🏝️ فرار از جزیره مرموز</h2><button class="btn" id="startBtn">شروع بازی</button><button class="btn exit-btn" id="exitBtn">خروج</button><div class="version">نسخه ۱.۰</div></div></div>
+<div class="overlay hidden" id="levelup"><div class="card"><div class="eyebrow">LEVEL 2 UNLOCKED</div><h2>🌲 جنگل نفرین‌شده!</h2><p>عالی بود! حالا وارد مرحله دوم می‌شوی؛ مسیر سخت‌تر است، دشمن‌ها سریع‌ترند و فقط ۲۵ ثانیه فرصت داری.</p><button class="btn" id="levelBtn">شروع مرحله دوم 🚀</button></div></div><div class="overlay hidden" id="end"><div class="card"><div class="eyebrow" id="endEyebrow">MISSION COMPLETE</div><h2 id="endTitle">آفرین، قهرمان!</h2><p id="endText">تو از جزیره فرار کردی.</p><button class="btn" id="againBtn">بازی دوباره ↻</button></div></div>
+</div></main>
+<script>
+(()=>{
+const c=document.getElementById('game'),ctx=c.getContext('2d');const W=c.width,H=c.height;
+const ui={coins:document.getElementById('coins'),lives:document.getElementById('lives'),time:document.getElementById('time'),start:document.getElementById('start'),levelup:document.getElementById('levelup'),levelLabel:document.getElementById('levelLabel'),end:document.getElementById('end'),endTitle:document.getElementById('endTitle'),endText:document.getElementById('endText'),endEyebrow:document.getElementById('endEyebrow')};
+const keys={};let state='intro',last=0,cam=0,particles=[],collected=0,lives=3,elapsed=0,timeLeft=30,shake=0;
+const worldW=2450, gravity=1900;let level=1;
+const platforms=[{x:0,y:470,w:390,h:100},{x:455,y:410,w:170,h:24},{x:690,y:350,w:155,h:24},{x:900,y:415,w:185,h:24},{x:1140,y:355,w:155,h:24},{x:1350,y:300,w:180,h:24},{x:1590,y:380,w:170,h:24},{x:1815,y:325,w:180,h:24},{x:2040,y:420,w:410,h:120}];
+const spikes=[]; // خارها از این نسخه حذف شده‌اند
+const coins=[{x:330,y:420},{x:530,y:365},{x:745,y:305},{x:970,y:370},{x:1195,y:310},{x:1410,y:255},{x:1660,y:335},{x:1880,y:280}].map(p=>({...p,r:12,got:false,bob:Math.random()*6}));
+const enemies=[{x:1010,y:383,min:930,max:1050,v:55,w:28,h:28},{x:1705,y:348,min:1600,max:1730,v:70,w:30,h:32}];
+const player={x:55,y:400,w:28,h:40,vx:0,vy:0,onGround:false,inv:0};
+function reset(){level=1;platforms.splice(0,platforms.length,...[{x:0,y:470,w:390,h:100},{x:455,y:410,w:170,h:24},{x:690,y:350,w:155,h:24},{x:900,y:415,w:185,h:24},{x:1140,y:355,w:155,h:24},{x:1350,y:300,w:180,h:24},{x:1590,y:380,w:170,h:24},{x:1815,y:325,w:180,h:24},{x:2040,y:420,w:410,h:120}]);coins.splice(0,coins.length,...[{x:330,y:420},{x:530,y:365},{x:745,y:305},{x:970,y:370},{x:1195,y:310},{x:1410,y:255},{x:1660,y:335},{x:1880,y:280}].map(p=>({...p,r:12,got:false,bob:Math.random()*6})));enemies.splice(0,enemies.length,{x:1010,y:383,min:930,max:1050,v:55,w:28,h:28},{x:1705,y:348,min:1600,max:1730,v:70,w:30,h:32});player.x=55;player.y=400;player.vx=player.vy=0;player.onGround=false;player.inv=0;collected=0;lives=3;cam=0;particles=[];elapsed=0;timeLeft=30;ui.coins.textContent='۰ / ۸';ui.lives.textContent='۳';ui.time.textContent='۳۰';ui.levelLabel.textContent='۱';state='playing';ui.start.classList.add('hidden');ui.levelup.classList.add('hidden');ui.end.classList.add('hidden');c.focus()}
+function startLevelTwo(){level=2;platforms.splice(0,platforms.length,...[{x:0,y:470,w:260,h:100},{x:320,y:405,w:125,h:24},{x:500,y:335,w:115,h:24},{x:675,y:410,w:120,h:24},{x:850,y:315,w:115,h:24},{x:1020,y:250,w:125,h:24},{x:1200,y:355,w:110,h:24},{x:1370,y:285,w:115,h:24},{x:1545,y:375,w:115,h:24},{x:1720,y:300,w:125,h:24},{x:1900,y:365,w:110,h:24},{x:2070,y:420,w:380,h:120}]);coins.splice(0,coins.length,...[{x:220,y:425},{x:355,y:360},{x:535,y:290},{x:710,y:365},{x:885,y:270},{x:1060,y:205},{x:1235,y:310},{x:1405,y:240}].map(p=>({...p,r:12,got:false,bob:Math.random()*6})));enemies.splice(0,enemies.length,{x:365,y:377,min:325,max:425,v:95,w:30,h:28},{x:880,y:287,min:855,max:940,v:110,w:30,h:28},{x:1570,y:343,min:1550,max:1630,v:125,w:32,h:32});player.x=35;player.y=400;player.vx=player.vy=0;player.onGround=false;player.inv=0;collected=0;cam=0;elapsed=0;timeLeft=25;ui.coins.textContent='۰ / ۸';ui.time.textContent='۲۵';ui.levelLabel.textContent='۲';ui.levelup.classList.add('hidden');state='playing';c.focus()}
+function end(win,timeout=false){state=win?'win':'lose';ui.end.classList.remove('hidden');ui.endEyebrow.textContent=win?'MISSION COMPLETE':'TRY AGAIN';ui.endTitle.textContent=win?'آفرین، قهرمان! 🏆':(timeout?'زمانت تمام شد! ⏱️':'این بار نشد!');ui.endText.textContent=win?'هر دو مرحله را با موفقیت تمام کردی! قهرمان جزیره شدی!':(timeout?(level===1?'۳۰ ثانیه تمام شد!':'۲۵ ثانیه مرحله دوم تمام شد!')+' این بار سریع‌تر حرکت کن، سکه‌ها را جمع کن و به خروجی برس.':'جان‌هایت تمام شد. این بار با دقت بیشتری از دشمن‌ها دوری کن و سکه‌ها را جمع کن.')}
+function burst(x,y,color,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*240,vy:(Math.random()-.8)*230,life:.5+Math.random()*.5,color,size:3+Math.random()*4})}
+function hit(){if(player.inv>0)return;lives--;player.inv=1.5;shake=10;burst(player.x+player.w/2,player.y+player.h/2,'#ff6b78',18);ui.lives.textContent=['۰','۱','۲','۳'][lives]||String(lives);if(lives<=0){end(false);return}player.x=Math.max(30,player.x-85);player.y=300;player.vy=-200;player.vx=0}
+function update(dt){if(state!=='playing')return;elapsed+=dt;timeLeft-=dt;if(timeLeft<=0){timeLeft=0;ui.time.textContent='۰';end(false,true);return}ui.time.textContent=Math.ceil(timeLeft).toLocaleString('fa-IR');player.inv=Math.max(0,player.inv-dt);let dir=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0);player.vx=dir*285;if((keys.Space||keys.ArrowUp||keys.KeyW)&&player.onGround){player.vy=-690;player.onGround=false;burst(player.x+player.w/2,player.y+player.h,'#c4f4ff',5)}player.vy+=gravity*dt;player.vy=Math.min(player.vy,1000);let wasGrounded=player.onGround;let oldY=player.y;player.x+=player.vx*dt;player.x=Math.max(0,Math.min(worldW-player.w,player.x));player.y+=player.vy*dt;player.onGround=false;
+for(const p of platforms){if(player.x+player.w>p.x&&player.x<p.x+p.w&&oldY+player.h<=p.y+5&&player.y+player.h>=p.y&&player.vy>=0){player.y=p.y-player.h;player.vy=0;player.onGround=true}}
+if(!wasGrounded&&player.onGround){burst(player.x+player.w/2,player.y+player.h,'#b6e8c1',7)}
+if(player.y>H+100)hit();
+for(const e of enemies){e.x+=e.v*dt;if(e.x<e.min||e.x+e.w>e.max)e.v*=-1;if(player.x+player.w>e.x+3&&player.x<e.x+e.w-3&&player.y+player.h>e.y+4&&player.y<e.y+e.h)hit()}
+for(const o of coins){if(!o.got){o.bob+=dt*3;if(Math.hypot(player.x+player.w/2-o.x,player.y+player.h/2-(o.y+Math.sin(o.bob)*5))<29){o.got=true;collected++;ui.coins.textContent=['۰','۱','۲','۳','۴','۵','۶','۷','۸'][collected]+' / ۸';burst(o.x,o.y,'#ffd166',14)}}}
+if(player.x>2350&&collected===8){if(level===1){state='between';ui.levelup.classList.remove('hidden')}else end(true);}cam=Math.max(0,Math.min(worldW-W,player.x-W*.36));shake=Math.max(0,shake-dt*30);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=350*dt;p.life-=dt}particles=particles.filter(p=>p.life>0)}
+function rr(x,y,w,h,r,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function draw(){ctx.save();if(shake)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);let sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#101d3c');sky.addColorStop(.55,'#24456a');sky.addColorStop(1,'#70a5a0');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+// enchanted forest background
+// distant forest canopy and soft moon glow
+let glow=ctx.createRadialGradient(690,155,8,690,155,390);glow.addColorStop(0,'#557c58aa');glow.addColorStop(.45,'#234d43aa');glow.addColorStop(1,'#0b1e27');ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+// moon behind the treetops
+ctx.fillStyle='#e8efc1';ctx.shadowColor='#d7f3b0';ctx.shadowBlur=28;ctx.beginPath();ctx.arc(745,105,29,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#b7d5a4';ctx.globalAlpha=.45;ctx.beginPath();ctx.arc(735,96,25,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+// tiny fireflies in the distance
+for(let i=0;i<34;i++){let x=((i*137+25)%W),y=75+(i*53)%320;ctx.fillStyle=`rgba(197,255,143,${.22+(i%4)*.13})`;ctx.beginPath();ctx.arc(x,y,1.4+(i%3)*.35,0,Math.PI*2);ctx.fill()}
+// layered tree silhouettes: far layer then nearer trees
+for(let layer=0;layer<3;layer++){
+ const parallax=[.10,.22,.38][layer], base=[365,420,465][layer];
+ for(let i=-2;i<13;i++){
+  let raw=i*118+((i%2)*29), x=((raw-cam*parallax+1800)%1800)-140;
+  let trunkW=[13,20,30][layer], treeH=[145+(i%3)*24,205+(i%4)*19,260+(i%3)*27][layer];
+  let top=base-treeH;
+  ctx.fillStyle=['#183b3b','#12332f','#0b2828'][layer];
+  ctx.beginPath();ctx.moveTo(x-trunkW/2,base);ctx.lineTo(x-trunkW*.42,top+treeH*.28);ctx.lineTo(x-9,top+treeH*.22);ctx.lineTo(x-18,top+treeH*.13);ctx.lineTo(x-4,top+treeH*.16);ctx.lineTo(x,top);ctx.lineTo(x+18,top+treeH*.18);ctx.lineTo(x+31,top+treeH*.10);ctx.lineTo(x+22,top+treeH*.28);ctx.lineTo(x+trunkW/2,base);ctx.closePath();ctx.fill();
+  // broad leafy crown clusters
+  let crown=layer===0?30:layer===1?42:54;
+  ctx.fillStyle=['#245345','#194536','#10382e'][layer];
+  for(let j=0;j<6;j++){let a=j*1.7;let cx=x+Math.cos(a)*crown*.58,cy=top+treeH*.16+Math.sin(a)*crown*.42;ctx.beginPath();ctx.arc(cx,cy,crown*(.42+(j%3)*.05),0,Math.PI*2);ctx.fill()}
+  if(layer===2){ctx.strokeStyle='#285b42';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-5,top+treeH*.38);ctx.quadraticCurveTo(x-20,top+treeH*.52,x-12,top+treeH*.68);ctx.stroke();ctx.fillStyle='#72b86b';ctx.globalAlpha=.8;ctx.beginPath();ctx.ellipse(x-12,top+treeH*.67,5,10,-.6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+ }
+}
+// low fog between trees
+let fog=ctx.createLinearGradient(0,300,0,H);fog.addColorStop(0,'#7ec7a000');fog.addColorStop(.65,'#78b99a16');fog.addColorStop(1,'#a7d8a522');ctx.fillStyle=fog;ctx.fillRect(0,280,W,H-280);
+ctx.save();ctx.translate(-cam,0);
+// hanging vines and glowing forest plants
+for(let x=65;x<worldW;x+=165){ctx.strokeStyle='#285944';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x,0);ctx.bezierCurveTo(x+24,62,x-18,82,x+5,140);ctx.stroke();ctx.fillStyle='#8ce67e';ctx.globalAlpha=.75;ctx.beginPath();ctx.ellipse(x+5,137,4,8,-.45,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+ // little luminous mushrooms at the forest floor
+ if(x%330<170){ctx.fillStyle='#b7d78a';ctx.fillRect(x+23,449,4,13);ctx.shadowColor='#b8f77e';ctx.shadowBlur=9;ctx.fillStyle='#b8f77e';ctx.beginPath();ctx.ellipse(x+25,449,9,4,0,Math.PI,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#f0ffbd';ctx.fillRect(x+22,448,2,2)}
+}
+// platforms
+for(const p of platforms){ctx.fillStyle='#172d38';ctx.fillRect(p.x,p.y,p.w,p.h);ctx.fillStyle='#397b63';ctx.fillRect(p.x,p.y,p.w,8);ctx.fillStyle='#6da879';for(let x=p.x+8;x<p.x+p.w-8;x+=24){ctx.fillRect(x,p.y+3,12,3)}ctx.fillStyle='#213f43';for(let x=p.x+12;x<p.x+p.w-8;x+=35){ctx.fillRect(x,p.y+22,15,5)}}
+// coins
+for(const o of coins){if(o.got)continue;let y=o.y+Math.sin(o.bob)*5;ctx.shadowColor='#ffd166';ctx.shadowBlur=15;ctx.fillStyle='#ffca55';ctx.beginPath();ctx.ellipse(o.x,y,9,13,Math.sin(o.bob)*.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle='#fff0a6';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(o.x,y,4,8,0,0,Math.PI*2);ctx.stroke()}
+// enemies
+for(const e of enemies){ctx.shadowColor='#d66bff';ctx.shadowBlur=13;rr(e.x,e.y+6,e.w,e.h-6,10,'#32244d');ctx.shadowBlur=0;ctx.fillStyle='#e9c6ff';ctx.fillRect(e.x+6,e.y+13,5,5);ctx.fillRect(e.x+e.w-11,e.y+13,5,5);ctx.fillStyle='#ff6588';ctx.fillRect(e.x+7,e.y+14,3,3);ctx.fillRect(e.x+e.w-10,e.y+14,3,3);ctx.fillStyle='#120f26';ctx.fillRect(e.x+8,e.y+23,e.w-16,3)}
+// exit gate
+ctx.save();ctx.translate(2375,0);ctx.shadowColor='#77f7d3';ctx.shadowBlur=collected===8?24:5;ctx.strokeStyle=collected===8?'#9affdf':'#668b91';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-35,420);ctx.lineTo(-35,350);ctx.arc(0,350,35,Math.PI,0);ctx.lineTo(35,420);ctx.stroke();ctx.fillStyle=collected===8?'#80ffdf55':'#0d1e3566';ctx.fillRect(-29,350,58,70);ctx.shadowBlur=0;if(collected<8){ctx.fillStyle='#e4c37c';ctx.font='bold 17px Vazirmatn,Tahoma';ctx.textAlign='center';ctx.fillText('۸ سکه!',0,335)}else{ctx.fillStyle='#9affdf';ctx.font='bold 15px Vazirmatn,Tahoma';ctx.textAlign='center';ctx.fillText('برو!',0,335)}ctx.restore();
+// player shadow
+ctx.fillStyle='#0b1b28aa';ctx.beginPath();ctx.ellipse(player.x+14,player.y+40,17,5,0,0,Math.PI*2);ctx.fill();
+// human adventurer character: layered clothes, face, hair, backpack and animated limbs
+if(player.inv<=0||Math.floor(player.inv*12)%2===0){
+ const x=player.x+14, y=player.y+40, moving=Math.abs(player.vx)>1&&player.onGround, airborne=!player.onGround, stride=moving?Math.sin(elapsed*13)*4:0;
+ ctx.save();
+ // Lean forward a little in the direction of travel; tuck legs and raise arms while airborne.
+ if(airborne){ctx.translate(x,y-20);ctx.rotate(player.vy<0 ? -0.12 : 0.10);ctx.translate(-x,-(y-20));}
+ // subtle rim light
+ ctx.shadowColor='#77e7c5';ctx.shadowBlur=7;
+ // backpack behind the body
+ rr(x-13,y-27,10,19,4,'#6d4c35');ctx.shadowBlur=0;
+ ctx.fillStyle='#b98752';ctx.fillRect(x-12,y-23,8,3);ctx.fillStyle='#3d3029';ctx.fillRect(x-11,y-17,7,2);
+ // legs and sturdy boots
+ ctx.save();
+ if(airborne){ctx.translate(0,player.vy<0?-2:1);rr(x-8,y-16,7,10,3,'#26364a');rr(x+1,y-16,7,10,3,'#26364a');rr(x-11,y-8,10,5,2,'#171f2a');rr(x+1,y-8,10,5,2,'#171f2a');}
+ else{ctx.translate(0,stride);rr(x-8,y-15,7,14,3,'#26364a');rr(x+1,y-15,7,14,3,'#26364a');rr(x-10,y-4,10,5,2,'#171f2a');rr(x,y-4,10,5,2,'#171f2a');ctx.fillStyle='#8b9ca9';ctx.fillRect(x-9,y-2,7,1);ctx.fillRect(x+1,y-2,7,1);}
+ ctx.restore();
+ // jacket torso with shaded sides
+ let jacket=ctx.createLinearGradient(x-10,y-31,x+10,y-12);jacket.addColorStop(0,'#4e9a83');jacket.addColorStop(.5,'#267765');jacket.addColorStop(1,'#174c4c');rr(x-10,y-31,20,19,5,jacket);
+ // jacket zipper and collar
+ ctx.strokeStyle='#d6c59b';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x,y-27);ctx.lineTo(x,y-13);ctx.stroke();ctx.fillStyle='#d8c8a0';ctx.beginPath();ctx.moveTo(x-5,y-30);ctx.lineTo(x,y-25);ctx.lineTo(x-1,y-22);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(x+5,y-30);ctx.lineTo(x,y-25);ctx.lineTo(x+1,y-22);ctx.closePath();ctx.fill();
+ // arms, sleeves and hands
+ ctx.save();ctx.translate(0,airborne?-4:(moving?Math.sin(elapsed*13+Math.PI)*2:0));ctx.strokeStyle='#245d54';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x-8,y-27);ctx.lineTo(x+(airborne?-14:-12),y+(airborne?-34:-17));ctx.moveTo(x+8,y-27);ctx.lineTo(x+(airborne?14:12),y+(airborne?-35:-17));ctx.stroke();ctx.fillStyle='#d6a078';ctx.beginPath();ctx.arc(x+(airborne?-14:-12),y+(airborne?-34:-16),3,0,Math.PI*2);ctx.arc(x+(airborne?14:12),y+(airborne?-35:-16),3,0,Math.PI*2);ctx.fill();ctx.restore();
+ // neck
+ rr(x-3,y-35,6,7,2,'#c98f68');
+ // head and ears
+ let skin=ctx.createLinearGradient(x-7,y-47,x+7,y-33);skin.addColorStop(0,'#f0c49a');skin.addColorStop(1,'#b97955');rr(x-7,y-48,14,15,5,skin);ctx.fillStyle='#c58a64';ctx.beginPath();ctx.arc(x-7,y-40,2.2,0,Math.PI*2);ctx.arc(x+7,y-40,2.2,0,Math.PI*2);ctx.fill();
+ // swept dark hair and side locks
+ ctx.fillStyle='#302820';ctx.beginPath();ctx.moveTo(x-7,y-42);ctx.lineTo(x-7,y-48);ctx.quadraticCurveTo(x-4,y-54,x+3,y-51);ctx.quadraticCurveTo(x+9,y-49,x+7,y-42);ctx.lineTo(x+3,y-45);ctx.lineTo(x-1,y-44);ctx.lineTo(x-5,y-42);ctx.closePath();ctx.fill();ctx.fillStyle='#514032';ctx.beginPath();ctx.moveTo(x-4,y-49);ctx.quadraticCurveTo(x+1,y-52,x+5,y-49);ctx.strokeStyle='#514032';ctx.lineWidth=1.5;ctx.stroke();
+ // eyes, brows and nose facing right
+ ctx.fillStyle='#30251f';ctx.fillRect(x+1,y-42,2,2);ctx.fillRect(x+5,y-42,1.8,2);ctx.fillStyle='#fff0d8';ctx.fillRect(x+1.5,y-42,1,1);ctx.fillRect(x+5.4,y-42,1,1);ctx.strokeStyle='#51372b';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,y-44);ctx.lineTo(x+3,y-44);ctx.moveTo(x+4,y-44);ctx.lineTo(x+7,y-44);ctx.stroke();ctx.fillStyle='#a9654d';ctx.fillRect(x+5,y-39,2,1);ctx.strokeStyle='#8b4d3d';ctx.beginPath();ctx.moveTo(x+2,y-36);ctx.quadraticCurveTo(x+4,y-35,x+6,y-36);ctx.stroke();
+ // small scarf and shoulder strap
+ ctx.fillStyle='#d7b56d';ctx.beginPath();ctx.moveTo(x-4,y-31);ctx.lineTo(x+3,y-29);ctx.lineTo(x+1,y-25);ctx.lineTo(x-3,y-27);ctx.closePath();ctx.fill();ctx.strokeStyle='#c5a36a';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+6,y-29);ctx.lineTo(x+2,y-14);ctx.stroke();
+ ctx.restore();
+}
+// exit platform glowing flowers
+for(let x=30;x<worldW;x+=220){ctx.fillStyle='#86edcd';ctx.globalAlpha=.7;ctx.fillRect(x,platforms.find(p=>x>=p.x&&x<p.x+p.w)?.y-5||465,4,4);ctx.globalAlpha=1}
+ctx.restore();for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;ctx.fillRect(p.x-cam,p.y,p.size,p.size)}ctx.globalAlpha=1;
+// foreground mist
+let mist=ctx.createLinearGradient(0,420,0,H);mist.addColorStop(0,'#b9f4d000');mist.addColorStop(1,'#b9f4d022');ctx.fillStyle=mist;ctx.fillRect(0,420,W,H-420);ctx.restore()}
+function loop(t){let dt=Math.min((t-last)/1000||0,.033);last=t;update(dt);draw();requestAnimationFrame(loop)}
+window.addEventListener('keydown',e=>{const code=e.code; if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(code))e.preventDefault(); keys[code]=true; if((code==='Space'||code==='Enter')&&state==='intro')reset(); if(code==='Enter'&&(state==='win'||state==='lose'))reset();},{passive:false}); window.addEventListener('keyup',e=>{keys[e.code]=false;}); window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;}); document.getElementById('startBtn').addEventListener('click',()=>{reset();c.focus();}); document.getElementById('againBtn').addEventListener('click',()=>{reset();c.focus();}); document.getElementById('levelBtn').addEventListener('click',()=>startLevelTwo()); document.getElementById('exitBtn').onclick=()=>{window.close();}; c.addEventListener('pointerdown',()=>c.focus()); c.addEventListener('click',()=>c.focus()); requestAnimationFrame(loop);
+})();
+</script></body></html>
